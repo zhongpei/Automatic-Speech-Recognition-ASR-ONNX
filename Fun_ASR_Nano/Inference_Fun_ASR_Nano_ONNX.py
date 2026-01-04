@@ -1,17 +1,49 @@
+import os
 import time
+import json
+import logging
 import numpy as np
 import onnxruntime
 from pydub import AudioSegment
 from transformers import AutoTokenizer
+from datetime import datetime
 
-tokenizer_path = r'/home/DakeQQ/Downloads/Fun-ASR-Nano-2512/Qwen3-0.6B'                                       # Set the tokenizer path.
-onnx_model_A = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_Optimized/FunASR_Nano_Encoder.onnx'                      # The exported onnx model path.
-onnx_model_B = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_Optimized/FunASR_Nano_Decoder_Embed.onnx'
-onnx_model_C = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_Optimized/FunASR_Nano_Decoder_Main.onnx'
-onnx_model_D = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_Optimized/FunASR_Nano_Greedy_Search.onnx'
-onnx_model_E = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_Optimized/FunASR_Nano_First_Beam_Search.onnx'
-onnx_model_F = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_Optimized/FunASR_Nano_Second_Beam_Search.onnx'
-onnx_model_G = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_Optimized/FunASR_Nano_Reset_Penality.onnx'
+# 禁用 OpenTelemetry 以避免连接错误
+os.environ['OTEL_SDK_DISABLED'] = 'true'
+os.environ['OTEL_METRICS_EXPORTER'] = 'none'
+
+# 配置日志系统
+timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
+log_filename = f"asr_results_{timestamp_str}.log"
+jsonl_filename = f"performance_{timestamp_str}.jsonl"
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_filename, encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+logger.info("=" * 80)
+logger.info("Fun ASR Nano ONNX Inference Script Started")
+logger.info("=" * 80)
+
+# Open JSONL file for performance logging
+jsonl_file = open(jsonl_filename, 'w', encoding='utf-8')
+
+# Model directory selection via environment variable
+MODEL_DIR = os.getenv("MODEL_DIR", "models_onnx")  # Default to models_onnx, can be set to models_onnx_optimize
+logger.info(f"Using model directory: {MODEL_DIR}")
+
+tokenizer_path = "./models/Qwen3-0.6B"                                                                   # Set the tokenizer path.
+onnx_model_A = f"./{MODEL_DIR}/FunASR_Nano_Encoder.onnx"                                                    # The exported onnx model path.
+onnx_model_B = f"./{MODEL_DIR}/FunASR_Nano_Decoder_Embed.onnx"
+onnx_model_C = f"./{MODEL_DIR}/FunASR_Nano_Decoder_Main.onnx"
+onnx_model_D = f"./{MODEL_DIR}/FunASR_Nano_Greedy_Search.onnx"
+onnx_model_E = f"./{MODEL_DIR}/FunASR_Nano_First_Beam_Search.onnx"
+onnx_model_F = f"./{MODEL_DIR}/FunASR_Nano_Second_Beam_Search.onnx"
+onnx_model_G = f"./{MODEL_DIR}/FunASR_Nano_Reset_Penality.onnx"
 
 # The exported onnx model path.
 test_audio = ["./example/zh.mp3", "./example/en.mp3", "./example/yue.mp3", "./example/ja.mp3"]       # The test audio list.
@@ -139,33 +171,41 @@ session_opts.add_session_config_entry('session.graph_optimizations_loop_level', 
 run_options.add_run_config_entry('disable_synchronize_execution_providers', '1')
 
 
+logger.info(f"Loading Encoder model: {onnx_model_A}")
 ort_session_A = onnxruntime.InferenceSession(onnx_model_A, sess_options=session_opts, providers=ORT_Accelerate_Providers, provider_options=provider_options, run_options=run_options)
 shape_value_in_A = ort_session_A._inputs_meta[0].shape[-1]
 in_name_A = ort_session_A.get_inputs()
 out_name_A = ort_session_A.get_outputs()
 in_name_A = [in_name_A[i].name for i in range(len(in_name_A))]
 out_name_A = [out_name_A[i].name for i in range(len(out_name_A))]
+logger.info(f"Encoder model loaded. Input shape: {ort_session_A._inputs_meta[0].shape}, Outputs: {len(out_name_A)}")
 
 
+logger.info(f"Loading Decoder Embed model: {onnx_model_B}")
 ort_session_B = onnxruntime.InferenceSession(onnx_model_B, sess_options=session_opts, providers=ORT_Accelerate_Providers, provider_options=provider_options, run_options=run_options)
 in_name_B = ort_session_B.get_inputs()
 out_name_B = ort_session_B.get_outputs()
 in_name_B = in_name_B[0].name
 out_name_B = [out_name_B[0].name]
+logger.info(f"Decoder Embed model loaded successfully")
 
 
+logger.info(f"Loading Decoder Main model: {onnx_model_C}")
 ort_session_C = onnxruntime.InferenceSession(onnx_model_C, sess_options=session_opts, providers=ORT_Accelerate_Providers, provider_options=provider_options, run_options=run_options)
-print(f"\nUsable Providers: {ort_session_C.get_providers()}")
+providers = ort_session_C.get_providers()
+logger.info(f"Usable Providers: {providers}")
 model_dtype = ort_session_C._inputs_meta[0].type
 if 'float16' in model_dtype:
     model_dtype = np.float16
 else:
     model_dtype = np.float32
+logger.info(f"Model data type: {model_dtype}")
 in_name_C = ort_session_C.get_inputs()
 out_name_C = ort_session_C.get_outputs()
 amount_of_outputs_C = len(out_name_C)
 in_name_C = [in_name_C[i].name for i in range(len(in_name_C))]
 out_name_C = [out_name_C[i].name for i in range(amount_of_outputs_C)]
+logger.info(f"Decoder Main model loaded. Inputs: {len(in_name_C)}, Outputs: {amount_of_outputs_C}")
 
 
 generate_limit = MAX_SEQ_LEN - 20                   # 20 = length of basic ids
@@ -179,42 +219,54 @@ num_keys_values_plus_5 = num_keys_values + 5
 num_keys_values_plus_6 = num_keys_values + 6
 num_keys_values_plus_7 = num_keys_values + 7
 vocab_size = ort_session_C._outputs_meta[num_keys_values].shape[1]
+logger.info(f"Model configuration - Vocab size: {vocab_size}, Num layers: {num_layers}, Generate limit: {generate_limit}")
 topK = onnxruntime.OrtValue.ortvalue_from_numpy(np.array([TOP_K], dtype=np.int64), device_type, DEVICE_ID)
 beam_size = onnxruntime.OrtValue.ortvalue_from_numpy(np.array([BEAM_SIZE], dtype=np.int64), device_type, DEVICE_ID)
 penality_value = onnxruntime.OrtValue.ortvalue_from_numpy(np.array([REPEAT_PENALITY], dtype=model_dtype), device_type, DEVICE_ID)
+logger.info(f"Loading tokenizer from: {tokenizer_path}")
 tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+logger.info("Tokenizer loaded successfully")
 
 
 # Pre-process inputs
+logger.info(f"Decoding configuration - USE_BEAM_SEARCH: {USE_BEAM_SEARCH}, TOP_K: {TOP_K}, BEAM_SIZE: {BEAM_SIZE}")
+logger.info(f"Repeat penalty: {REPEAT_PENALITY}, Penalty range: {PENALITY_RANGE}")
 if USE_BEAM_SEARCH and (TOP_K < BEAM_SIZE):
-    print("\nBeam Search does not display the immediate decoding results; the best result is shown only after the entire decoding process is complete.\n")
+    logger.warning("Beam Search does not display the immediate decoding results; the best result is shown only after the entire decoding process is complete.")
     TOP_K = BEAM_SIZE
 
 
 if (TOP_K < 2) or (BEAM_SIZE < 2):
     USE_BEAM_SEARCH = False
-    print("\nInappropriate Beam Search setting detected. Falling back to Greedy Search.")
+    logger.warning("Inappropriate Beam Search setting detected. Falling back to Greedy Search.")
 
 
 if USE_BEAM_SEARCH:
+    logger.info("Loading Beam Search models...")
+    logger.info(f"Loading First Beam Search model: {onnx_model_E}")
     ort_session_E = onnxruntime.InferenceSession(onnx_model_E, sess_options=session_opts, providers=ORT_Accelerate_Providers, provider_options=provider_options, run_options=run_options)
     in_name_E = ort_session_E.get_inputs()
     out_name_E = ort_session_E.get_outputs()
     in_name_E = [in_name_E[i].name for i in range(len(in_name_E))]
     out_name_E = [out_name_E[i].name for i in range(len(out_name_E))]
+    logger.info(f"First Beam Search model loaded. Inputs: {len(in_name_E)}, Outputs: {len(out_name_E)}")
 
+    logger.info(f"Loading Second Beam Search model: {onnx_model_F}")
     ort_session_F = onnxruntime.InferenceSession(onnx_model_F, sess_options=session_opts, providers=ORT_Accelerate_Providers, provider_options=provider_options, run_options=run_options)
     in_name_F = ort_session_F.get_inputs()
     out_name_F = ort_session_F.get_outputs()
     amount_of_outputs_F = len(out_name_F)
     in_name_F = [in_name_F[i].name for i in range(len(in_name_F))]
     out_name_F = [out_name_F[i].name for i in range(amount_of_outputs_F)]
+    logger.info(f"Second Beam Search model loaded. Inputs: {len(in_name_F)}, Outputs: {amount_of_outputs_F}")
     
+    logger.info(f"Loading Reset Penality model: {onnx_model_G}")
     ort_session_G = onnxruntime.InferenceSession(onnx_model_G, sess_options=session_opts, providers=ORT_Accelerate_Providers, provider_options=provider_options, run_options=run_options)
     in_name_G = ort_session_G.get_inputs()
     out_name_G = ort_session_G.get_outputs()
     in_name_G = [in_name_G[i].name for i in range(len(in_name_G))]
     out_name_G = [out_name_G[i].name for i in range(len(out_name_G))]
+    logger.info("All Beam Search models loaded successfully")
 
     input_feed_E = {
         in_name_E[num_keys_values_plus_3]: penality_value,
@@ -229,12 +281,14 @@ if USE_BEAM_SEARCH:
 
 else:
     BEAM_SIZE = 1
+    logger.info(f"Loading Greedy Search model: {onnx_model_D}")
     ort_session_D = onnxruntime.InferenceSession(onnx_model_D, sess_options=session_opts, providers=ORT_Accelerate_Providers, provider_options=provider_options, run_options=run_options)
     in_name_D = ort_session_D.get_inputs()
     out_name_D = ort_session_D.get_outputs()
     in_name_D = [in_name_D[i].name for i in range(len(in_name_D))]
     out_name_D = [out_name_D[i].name for i in range(len(out_name_D))]
     input_feed_D = {in_name_D[2]: penality_value}
+    logger.info("Greedy Search model loaded successfully")
 
 
 if USE_BEAM_SEARCH:
@@ -283,48 +337,73 @@ if do_repeat_penality:
 input_feed_A = {}
 input_feed_C = {}
 
+logger.info("Preparing task prompts...")
 init_all_outputs_B = []
-for i in task_prompt:
-    tokens = tokenizer(i, return_tensors='np')['input_ids'].astype(np.int32)
+for i, prompt in enumerate(task_prompt):
+    logger.debug(f"Processing prompt {i+1}/{len(task_prompt)}: {prompt}")
+    tokens = tokenizer(prompt, return_tensors='np')['input_ids'].astype(np.int32)
     input_ids = onnxruntime.OrtValue.ortvalue_from_numpy(tokens, device_type, DEVICE_ID)
     input_feed_B = {in_name_B: input_ids}
     init_all_outputs_B.append(ort_session_B.run_with_ort_values(out_name_B, input_feed_B)[0])
+logger.info(f"All {len(task_prompt)} prompts processed successfully")
 
 # Load the input audio
-for prompt_embed, test in zip(init_all_outputs_B, test_audio):
-    print("----------------------------------------------------------------------------------------------------------")
-    print(f"\nTest Input Audio: {test}")
+logger.info("=" * 80)
+logger.info("Starting audio processing")
+logger.info("=" * 80)
+for idx, (prompt_embed, test) in enumerate(zip(init_all_outputs_B, test_audio)):
+    logger.info("-" * 80)
+    logger.info(f"Processing audio file {idx+1}/{len(test_audio)}: {test}")
+    logger.info(f"Task prompt: {task_prompt[idx]}")
+    
+    logger.debug(f"Loading audio file: {test}")
     audio = np.array(AudioSegment.from_file(test).set_channels(1).set_frame_rate(SAMPLE_RATE).get_array_of_samples(), dtype=np.int16)
+    logger.debug(f"Original audio length: {len(audio)} samples, Sample rate: {SAMPLE_RATE} Hz")
+    
     if USE_NORMALIZER:
+        logger.debug("Applying audio normalizer")
         audio = normalizer(audio, 8192.0)
     audio_len = len(audio)
     audio = audio.reshape(1, 1, -1)
+    logger.info(f"Audio loaded: {audio_len} samples ({audio_len/SAMPLE_RATE:.2f} seconds)")
     if isinstance(shape_value_in_A, str):
         INPUT_AUDIO_LENGTH = min(MAX_INPUT_AUDIO_LENGTH, audio_len)  # You can adjust it.
     else:
         INPUT_AUDIO_LENGTH = shape_value_in_A
+    logger.debug(f"Input audio length: {INPUT_AUDIO_LENGTH} samples")
+    
     if SLIDING_WINDOW <= 0:
         stride_step = INPUT_AUDIO_LENGTH
     else:
         stride_step = SLIDING_WINDOW
+    logger.debug(f"Sliding window: {SLIDING_WINDOW}, Stride step: {stride_step}")
+    
     if audio_len > INPUT_AUDIO_LENGTH:
         num_windows = int(np.ceil((audio_len - INPUT_AUDIO_LENGTH) / stride_step)) + 1
         total_length_needed = (num_windows - 1) * stride_step + INPUT_AUDIO_LENGTH
         pad_amount = total_length_needed - audio_len
+        logger.debug(f"Audio longer than input length. Splitting into {num_windows} windows, padding {pad_amount} samples")
         final_slice = audio[:, :, -pad_amount:].astype(np.float32)
         white_noise = (np.sqrt(np.mean(final_slice * final_slice)) * np.random.normal(loc=0.0, scale=1.0, size=(1, 1, pad_amount))).astype(audio.dtype)
         audio = np.concatenate((audio, white_noise), axis=-1)
     elif audio_len < INPUT_AUDIO_LENGTH:
+        logger.debug(f"Audio shorter than input length. Padding {INPUT_AUDIO_LENGTH - audio_len} samples")
         audio_float = audio.astype(np.float32)
         white_noise = (np.sqrt(np.mean(audio_float * audio_float)) * np.random.normal(loc=0.0, scale=1.0, size=(1, 1, INPUT_AUDIO_LENGTH - audio_len))).astype(audio.dtype)
         audio = np.concatenate((audio, white_noise), axis=-1)
     aligned_len = audio.shape[-1]
+    logger.info(f"Audio preprocessed: {aligned_len} samples ({aligned_len/SAMPLE_RATE:.2f} seconds)")
 
     asr_result = ""
     slice_start = 0
     slice_end = INPUT_AUDIO_LENGTH
     rtf_time = time.time()
+    window_count = 0
+    windows_data = []  # Collect window-level performance data
+    logger.info("Starting ASR inference...")
     while slice_end <= aligned_len:
+        window_count += 1
+        logger.debug(f"Processing window {window_count}: samples {slice_start} to {slice_end}")
         input_feed_A[in_name_A[0]] = onnxruntime.OrtValue.ortvalue_from_numpy(audio[..., slice_start: slice_end], device_type, DEVICE_ID)
         input_feed_A[in_name_A[1]] = prompt_embed
         all_outputs_A = ort_session_A.run_with_ort_values(out_name_A, input_feed_A)
@@ -348,6 +427,7 @@ for prompt_embed, test in zip(init_all_outputs_B, test_audio):
 
         num_decode = 0
         limit = generate_limit - all_outputs_A[1].numpy()
+        logger.debug(f"Decoding limit: {limit} tokens")
         start_time = time.time()
         while num_decode < limit:
             all_outputs_C = ort_session_C.run_with_ort_values(out_name_C, input_feed_C)
@@ -364,8 +444,11 @@ for prompt_embed, test in zip(init_all_outputs_B, test_audio):
                     all_outputs_F = ort_session_F.run_with_ort_values(out_name_F, input_feed_F)
                     max_logits_idx = all_outputs_F[num_keys_values_plus_4].numpy()
                 if max_logits_idx in STOP_TOKEN:
+                    logger.debug(f"Stop token detected at decode step {num_decode}")
                     save_id = all_outputs_F[num_keys_values_plus_1].numpy()[0, :num_decode]  # 0 is the Top_1
-                    asr_result += tokenizer.decode(save_id, skip_special_tokens=True)
+                    decoded_text = tokenizer.decode(save_id, skip_special_tokens=True)
+                    asr_result += decoded_text
+                    logger.debug(f"Decoded text for this window: {decoded_text}")
                     break
                 if do_repeat_penality and (num_decode >= PENALITY_RANGE):
                     input_feed_G[in_name_G[0]] = all_outputs_F[num_keys_values_plus_1]
@@ -392,7 +475,10 @@ for prompt_embed, test in zip(init_all_outputs_B, test_audio):
                 all_outputs_D = ort_session_D.run_with_ort_values(out_name_D, input_feed_D)
                 max_logits_idx = all_outputs_D[0].numpy()[0, 0]
                 if max_logits_idx in STOP_TOKEN:
-                    asr_result += tokenizer.decode(save_id_greedy[:num_decode], skip_special_tokens=True)
+                    logger.debug(f"Stop token detected at decode step {num_decode}")
+                    decoded_text = tokenizer.decode(save_id_greedy[:num_decode], skip_special_tokens=True)
+                    asr_result += decoded_text
+                    logger.debug(f"Decoded text for this window: {decoded_text}")
                     break
                 if do_repeat_penality and (num_decode >= PENALITY_RANGE):
                     reset_ids = save_id_greedy[penality_reset_count_greedy]
@@ -413,9 +499,84 @@ for prompt_embed, test in zip(init_all_outputs_B, test_audio):
                 input_feed_C[in_name_C[num_keys_values_plus_2]] = init_ids_len_1
                 input_feed_C[in_name_C[num_keys_values_plus_3]] = init_attention_mask_0
             num_decode += 1
+            if num_decode % 10 == 0:
+                logger.debug(f"Decoding progress: {num_decode}/{limit} tokens")
         slice_start += stride_step
         slice_end = slice_start + INPUT_AUDIO_LENGTH
-        print(f"\nDecode: {((num_decode + 1) / (time.time() - start_time)):.3f} token/s\n")
-    print(asr_result, end="", flush=True)
-    print(f"\n\nRTF: {((time.time() - rtf_time) / (audio_len / SAMPLE_RATE)):.3f}")
+        window_time = time.time() - start_time
+        decode_speed = ((num_decode + 1) / window_time) if window_time > 0 else 0
+        logger.info(f"Window {window_count} completed: {num_decode} tokens decoded, Speed: {decode_speed:.3f} token/s")
+        # Collect window performance data
+        windows_data.append({
+            "window_number": window_count,
+            "tokens_decoded": int(num_decode),
+            "decode_speed": float(decode_speed),
+            "window_time": float(window_time),
+            "slice_start": int(slice_start),
+            "slice_end": int(slice_end)
+        })
+    
+    processing_time = time.time() - rtf_time
+    audio_duration = audio_len / SAMPLE_RATE
+    rtf = processing_time / audio_duration if audio_duration > 0 else 0
+    total_tokens_decoded = sum(w["tokens_decoded"] for w in windows_data)
+    avg_decode_speed = sum(w["decode_speed"] for w in windows_data) / len(windows_data) if windows_data else 0
+    
+    logger.info("=" * 80)
+    logger.info("ASR Result:")
+    logger.info(f"Audio file: {test}")
+    logger.info(f"Task prompt: {task_prompt[idx]}")
+    logger.info(f"Recognized text: {asr_result}")
+    logger.info(f"Processing time: {processing_time:.3f} seconds")
+    logger.info(f"Audio duration: {audio_duration:.3f} seconds")
+    logger.info(f"RTF (Real-Time Factor): {rtf:.3f}")
+    logger.info(f"Total tokens decoded: {total_tokens_decoded}")
+    logger.info(f"Average decode speed: {avg_decode_speed:.3f} token/s")
+    logger.info("=" * 80)
+    
+    # Prepare model configuration info
+    model_config = {
+        "model_dir": MODEL_DIR,
+        "use_beam_search": USE_BEAM_SEARCH,
+        "top_k": TOP_K,
+        "beam_size": BEAM_SIZE,
+        "repeat_penalty": REPEAT_PENALITY,
+        "penalty_range": PENALITY_RANGE,
+        "max_threads": MAX_THREADS,
+        "device_id": DEVICE_ID,
+        "providers": ORT_Accelerate_Providers if ORT_Accelerate_Providers else ["CPUExecutionProvider"],
+        "device_type": device_type,
+        "vocab_size": vocab_size,
+        "num_layers": num_layers,
+        "max_seq_len": MAX_SEQ_LEN,
+        "use_normalizer": USE_NORMALIZER
+    }
+    
+    # Write performance data to JSONL
+    performance_record = {
+        "timestamp": datetime.now().isoformat(),
+        "model_dir": MODEL_DIR,
+        "model_config": model_config,
+        "audio_file": test,
+        "task_prompt": task_prompt[idx],
+        "audio_duration": float(audio_duration),
+        "processing_time": float(processing_time),
+        "rtf": float(rtf),
+        "tokens_decoded": int(total_tokens_decoded),
+        "decode_speed": float(avg_decode_speed),
+        "recognized_text": asr_result,
+        "windows": windows_data
+    }
+    jsonl_file.write(json.dumps(performance_record, ensure_ascii=False) + "\n")
+    jsonl_file.flush()
+    
+    # 同时输出到控制台（保持原有格式）
     print("----------------------------------------------------------------------------------------------------------")
+    print(f"\nTest Input Audio: {test}")
+    print(f"Recognized text: {asr_result}")
+    print(f"\nRTF: {rtf:.3f}")
+    print("----------------------------------------------------------------------------------------------------------")
+
+# Close JSONL file
+jsonl_file.close()
+logger.info(f"Performance log saved to: {jsonl_filename}")

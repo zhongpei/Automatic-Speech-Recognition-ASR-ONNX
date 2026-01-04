@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# uv
+uv.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+# Model files and directories
+Fun_ASR_Nano/models/
+Fun_ASR_Nano/models_onnx/
+Fun_ASR_Nano/models_onnx_optimize/
+models_onnx/
+*.log
+*.jsonl
+otel-output/

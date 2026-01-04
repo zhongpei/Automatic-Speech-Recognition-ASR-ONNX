@@ -11,13 +11,22 @@ from transformers import AutoModelForCausalLM
 from onnxruntime.quantization import (
     QuantType,
     quantize_dynamic,
-    matmul_nbits_quantizer,  # onnxruntime >= 1.22.0
     quant_utils
 )
 
+# Try to import matmul_nbits_quantizer (requires onnxruntime >= 1.22.0)
+try:
+    from onnxruntime.quantization import matmul_nbits_quantizer
+    MATMUL_NBITS_AVAILABLE = True
+except ImportError:
+    import onnxruntime
+    MATMUL_NBITS_AVAILABLE = False
+    print(f"Warning: matmul_nbits_quantizer is not available in onnxruntime {onnxruntime.__version__}")
+    print("         Int4 quantization will be disabled. Please upgrade to onnxruntime >= 1.22.0 for int4 support.")
+
 # Path Setting
-original_folder_path = r"/home/DakeQQ/Downloads/Fun_ASR_Nano_ONNX"                   # The original folder.
-quanted_folder_path = r"/home/DakeQQ/Downloads/Fun_ASR_Nano_Optimized"               # The optimized folder.
+original_folder_path = "./models_onnx"                   # The original folder.
+quanted_folder_path = "./models_onnx_optimize"            # The optimized folder.
 
 # Create the output directory if it doesn't exist
 os.makedirs(quanted_folder_path, exist_ok=True)
@@ -66,7 +75,12 @@ for model_name in model_names:
         continue
 
     # Start Quantize
-    if quant_int4 and ("Embed" in model_path or "Main" in model_path or "Encoder" in model_path):
+    if quant_int4 and not MATMUL_NBITS_AVAILABLE:
+        print(f"Warning: Int4 quantization is enabled but matmul_nbits_quantizer is not available.")
+        print(f"         Skipping int4 quantization for {model_name}. Falling back to other optimization methods.")
+        quant_int4 = False
+    
+    if quant_int4 and MATMUL_NBITS_AVAILABLE and ("Embed" in model_path or "Main" in model_path or "Encoder" in model_path):
         if "Embed" in model_path:
             op_types = ["Gather"]
             quant_axes = [1]

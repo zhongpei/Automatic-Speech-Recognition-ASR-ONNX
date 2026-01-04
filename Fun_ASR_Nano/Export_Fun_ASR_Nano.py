@@ -1,4 +1,5 @@
 import gc
+import os
 import time
 import torch
 import torchaudio
@@ -8,16 +9,18 @@ from pydub import AudioSegment
 from funasr import AutoModel
 from transformers import AutoTokenizer
 from STFT_Process import STFT_Process                                                                    # The custom STFT/ISTFT can be exported in ONNX format.
+import os
+os.environ['OTEL_SDK_DISABLED'] = 'true'
 
-model_path = r'/home/DakeQQ/Downloads/Fun-ASR-Nano-2512'                                                 # Set the path where the [Fun-ASR-Nano-2512, Fun-ASR-MLT-Nano-2512] downloaded.  URL: https://modelscope.cn/models/FunAudioLLM/Fun-ASR-Nano-2512 / https://modelscope.cn/models/FunAudioLLM/Fun-ASR-MLT-Nano-2512
-tokenizer_path = r'/home/DakeQQ/Downloads/Fun-ASR-Nano-2512/Qwen3-0.6B'                                  # Set the tokenizer path.
-onnx_model_A = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_ONNX/FunASR_Nano_Encoder.onnx'                      # The exported onnx model path.
-onnx_model_B = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_ONNX/FunASR_Nano_Decoder_Embed.onnx'
-onnx_model_C = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_ONNX/FunASR_Nano_Decoder_Main.onnx'
-onnx_model_D = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_ONNX/FunASR_Nano_Greedy_Search.onnx'
-onnx_model_E = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_ONNX/FunASR_Nano_First_Beam_Search.onnx'
-onnx_model_F = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_ONNX/FunASR_Nano_Second_Beam_Search.onnx'
-onnx_model_G = r'/home/DakeQQ/Downloads/Fun_ASR_Nano_ONNX/FunASR_Nano_Reset_Penality.onnx'
+model_path = "./models"                                                                                  # Set the path where the [Fun-ASR-Nano-2512, Fun-ASR-MLT-Nano-2512] downloaded.  URL: https://modelscope.cn/models/FunAudioLLM/Fun-ASR-Nano-2512 / https://modelscope.cn/models/FunAudioLLM/Fun-ASR-MLT-Nano-2512
+tokenizer_path = "./models/Qwen3-0.6B"                                                                   # Set the tokenizer path.
+onnx_model_A = "./models_onnx/FunASR_Nano_Encoder.onnx"                                                  # The exported onnx model path.
+onnx_model_B = "./models_onnx/FunASR_Nano_Decoder_Embed.onnx"
+onnx_model_C = "./models_onnx/FunASR_Nano_Decoder_Main.onnx"
+onnx_model_D = "./models_onnx/FunASR_Nano_Greedy_Search.onnx"
+onnx_model_E = "./models_onnx/FunASR_Nano_First_Beam_Search.onnx"
+onnx_model_F = "./models_onnx/FunASR_Nano_Second_Beam_Search.onnx"
+onnx_model_G = "./models_onnx/FunASR_Nano_Reset_Penality.onnx"
 
 # The exported onnx model path.
 test_audio = ["./example/zh.mp3", "./example/en.mp3", "./example/yue.mp3", "./example/ja.mp3"]          # The test audio list.
@@ -61,7 +64,7 @@ PENALITY_RANGE = 10                                         # Penalizes the most
 # Runtime & Export Settings
 MAX_THREADS = 0                                             # Parllel CPU threads. Set 0 for auto.
 DEVICE_ID = 0                                               # Default to zero.
-OPSET = 17                                                  # ONNX Runtime opset version.
+OPSET = 13                                                  # ONNX Runtime opset version.
 
 
 MAX_STFT_SIGNAL_LENGTH = MAX_INPUT_AUDIO_LENGTH // HOP_LENGTH + 1   # The length after STFT processed
@@ -342,6 +345,9 @@ class FUNASR_NANO_DECODER_MAIN(torch.nn.Module):
         logits = self.funasr_nano_decoder_main.lm_head(hidden_states)
         return *self.save_key, *self.save_value, logits, kv_seq_len
 
+
+# Create models_onnx directory if it doesn't exist
+os.makedirs("./models_onnx", exist_ok=True)
 
 print('\nExport start ...\n')
 with torch.inference_mode():

@@ -1,94 +1,116 @@
----
+# Automatic Speech Recognition ASR ONNX
 
-## Automatic-Speech-Recognition-ASR-ONNX  
-Harness the power of ONNX Runtime to transcribe audio into text effortlessly.
+Fun ASR Nano ONNX 导出和推理项目
 
-### Supported Models  
-1. **Single Model**:  
-   - [SenseVoiceSmall](https://github.com/FunAudioLLM/SenseVoice)
-   - [Whisper-Large-V3](https://huggingface.co/openai/whisper-large-v3) / [Custom fine tuned]
-   - [Whisper-Large-V2](https://huggingface.co/openai/whisper-large-v2) / [Custom fine tuned]
-   - [Paraformer-Small-Chinese](https://modelscope.cn/models/iic/speech_paraformer_asr_nat-zh-cn-16k-common-vocab8358-tensorflow1)
-   - [Paraformer-Large-Chinese](https://modelscope.cn/models/iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch)
-   - [Paraformer-Large-English](https://modelscope.cn/models/iic/speech_paraformer_asr-en-16k-vocab4199-pytorch)
-   - [Paraformer-Online-Streaming-Chinese](https://modelscope.cn/models/iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online)
-   - [FireRedASR-AED](https://github.com/FireRedTeam/FireRedASR)
-   - [Dolphin](https://github.com/DataoceanAI/Dolphin/tree/main)
-   - [Fun-ASR-Nano-2512](https://www.modelscope.cn/models/FunAudioLLM/Fun-ASR-Nano-2512)
-   
-2. **Combined Models (ASR + Speaker Identify)**:  
-   - [SenseVoiceSmall](https://github.com/FunAudioLLM/SenseVoice) + [ERes2NetV2](https://modelscope.cn/models/iic/speech_eres2netv2_sv_zh-cn_16k-common/summary)  
-   - [SenseVoiceSmall](https://github.com/FunAudioLLM/SenseVoice) + [ERes2NetV2_w24s4ep4](https://modelscope.cn/models/iic/speech_eres2netv2w24s4ep4_sv_zh-cn_16k-common)
+## 项目结构
 
-### Features  
-- End-to-end speech recognition with built-in `STFT` processing.  
-  **Input**: Audio file  
-  **Output**: Transcription result  
-- Seamlessly integrate with these additional tools for improved performance:  
-  - [Voice Activity Detection (VAD)](https://github.com/DakeQQ/Voice-Activity-Detection-VAD-ONNX)  
-  - [Audio Denoiser](https://github.com/DakeQQ/Audio-Denoiser-ONNX)
-- This Whisper does not support automatic language detection. Please specify a target language.
+```
+.
+├── Fun_ASR_Nano/          # 主要代码目录
+│   ├── Export_Fun_ASR_Nano.py          # ONNX 模型导出脚本
+│   ├── Inference_Fun_ASR_Nano_ONNX.py  # ONNX 模型推理脚本
+│   ├── Optimize_ONNX.py                # ONNX 模型优化脚本
+│   ├── STFT_Process.py                  # STFT 处理模块
+│   ├── models/                          # 模型文件目录
+│   └── example/                         # 示例音频文件
+├── otel/                    # OpenTelemetry 服务配置
+│   ├── otel-collector-config.yaml
+│   ├── start_otel_collector_docker.sh
+│   ├── stop_otel_collector_docker.sh
+│   └── README.md
+├── pyproject.toml          # uv 项目配置
+└── README.md              # 本文件
+```
 
-### Learn More  
-- Visit the [project overview](https://github.com/DakeQQ?tab=repositories) for further details.
+## 环境要求
 
----
+- Python >= 3.8
+- uv (Python 包管理器)
 
-## 性能 Performance  
+## 依赖管理
 
-| **OS**          | **Device** | **Backend**           | **Model**                                      | **Real-Time Factor**<br>(Chunk Size: 128000 or 8s) |
-|:----------------:|:----------:|:---------------------:|:---------------------------------------------:|:--------------------------------------------------:|
-| Ubuntu 24.04     | Laptop     | CPU<br>i5-7300HQ     | SenseVoiceSmall<br>f32                           | 0.037                                              |
-| Ubuntu 24.04     | Laptop     | CPU<br>i5-7300HQ     | SenseVoiceSmall<br>q8f32                         | 0.075                                              |
-| Ubuntu 24.04     | Desktop    | CPU<br>i3-12300      | SenseVoiceSmall<br>f32                           | 0.019                                              |
-| Ubuntu 24.04     | Desktop    | CPU<br>i3-12300      | SenseVoiceSmall<br>q8f32                         | 0.022                                              |
-| Ubuntu 24.04     | Desktop    | CPU<br>i3-12300      | SenseVoiceSmall + <br>ERes2NetV2_w24s4ep4<br>f32 | 0.10                                               |
-| Ubuntu 24.04     | Desktop    | CPU<br>i3-12300      | Whisper-Large-v3-en<br>q8f32                     | 0.15                                               |
-| Ubuntu 24.04     | Desktop    | CPU<br>i3-12300      | Whisper-Large-v3-Turbo-en<br>q8f32               | 0.073                                              |
-| Ubuntu 24.04     | Laptop     | CPU<br>i5-7300HQ     | Paraformer-Small-Chinese<br>f32                  | 0.04                                               |
-| Ubuntu 24.04     | Laptop     | CPU<br>i5-7300HQ     | Paraformer-Large-English<br>q8f32                | 0.14                                               |
-| Ubuntu 24.04     | Desktop    | CPU<br>i3-12300      | Paraformer-Large-Streaming-Chinese<br>f32        | 0.06 <br> Chunk Size: 8800                         |
-| Ubuntu 24.04     | Laptop     | CPU<br>i3-12300      | FireRedASR-AED-L-Chinese<br>q8f32                | 0.17                                               |
-| Ubuntu 24.04     | Laptop     | CPU<br>i7-1165G7     | Dolphin-Small<br>q8f32                           | 0.14                                               |
-| Ubuntu 24.04     | Laptop     | CPU<br>i7-1165G7     | Fun-ASR-Nano<br>q4f32                            | 0.25                                               |
+项目使用 `uv` 进行依赖管理。配置文件为 `pyproject.toml`。
 
----
+### 关键依赖
 
-## Coming Soon 🚀  
+- torch, torchaudio
+- numpy
+- onnxruntime
+- pydub
+- funasr
+- transformers
 
+### 安装依赖
 
----
+**注意**: 由于 `funasr` 的某些依赖（如 `llvmlite`）与 Python 3.10+ 存在兼容性问题，如果使用 `uv sync` 安装失败，可以使用系统 Python 环境：
 
-### 自动语音识别（ASR）ONNX  
-利用 ONNX Runtime 实现音频到文本的高效转录。
+```bash
+# 使用系统 Python 安装依赖
+pip install torch torchaudio numpy onnxruntime pydub funasr transformers
+```
 
-### 支持模型  
-1. **单模型**：  
-   - [SenseVoiceSmall](https://github.com/FunAudioLLM/SenseVoice)
-   - [Whisper-Large-V3](https://huggingface.co/openai/whisper-large-v3) / [Custom fine tuned]
-   - [Whisper-Large-V2](https://huggingface.co/openai/whisper-large-v2) / [Custom fine tuned]
-   - [Paraformer-Small-中文](https://modelscope.cn/models/iic/speech_paraformer_asr_nat-zh-cn-16k-common-vocab8358-tensorflow1)
-   - [Paraformer-Large-中文](https://modelscope.cn/models/iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-pytorch)
-   - [Paraformer-Large-英文](https://modelscope.cn/models/iic/speech_paraformer_asr-en-16k-vocab4199-pytorch)
-   - [Paraformer-实时-流式-中文](https://modelscope.cn/models/iic/speech_paraformer-large_asr_nat-zh-cn-16k-common-vocab8404-online)
-   - [FireRedASR-AED](https://github.com/FireRedTeam/FireRedASR)
-   - [Dolphin](https://github.com/DataoceanAI/Dolphin/tree/main)
-   - [Fun-ASR-Nano-2512](https://www.modelscope.cn/models/FunAudioLLM/Fun-ASR-Nano-2512)
-   
-2. **组合模型 (ASR + 讲话者识别)**：  
-   - [SenseVoiceSmall](https://github.com/FunAudioLLM/SenseVoice) + [ERes2NetV2](https://modelscope.cn/models/iic/speech_eres2netv2_sv_zh-cn_16k-common/summary)  
-   - [SenseVoiceSmall](https://github.com/FunAudioLLM/SenseVoice) + [ERes2NetV2_w24s4ep4](https://modelscope.cn/models/iic/speech_eres2netv2w24s4ep4_sv_zh-cn_16k-common)  
+或者使用 Python 3.9 环境：
 
-### 功能特点  
-- 端到端语音识别，内置 `STFT` 处理。  
-  **输入**：音频文件  
-  **输出**：转录结果  
-- 推荐搭配以下工具，提升性能：  
-  - [语音活动检测 (VAD)](https://github.com/DakeQQ/Voice-Activity-Detection-VAD-ONNX)  
-  - [音频去噪](https://github.com/DakeQQ/Audio-Denoiser-ONNX)
-- 此 Whisper 不支持自动语言检测。请指定目标语言。
+```bash
+# 使用 Python 3.9 创建虚拟环境
+uv venv --python 3.9
+uv sync
+```
 
-### 了解更多  
-- 访问[项目概览](https://github.com/DakeQQ?tab=repositories)获取更多信息。
+## 使用方法
 
----
+### 1. 导出 ONNX 模型
+
+```bash
+cd Fun_ASR_Nano
+python3 Export_Fun_ASR_Nano.py
+```
+
+导出的模型将保存在 `./models_onnx/` 目录中。
+
+### 2. 运行推理
+
+```bash
+cd Fun_ASR_Nano
+python3 Inference_Fun_ASR_Nano_ONNX.py
+```
+
+### 3. 启动 OpenTelemetry 服务（可选）
+
+如果遇到 OpenTelemetry 连接错误，可以启动本地服务：
+
+```bash
+cd otel
+./start_otel_collector_docker.sh
+```
+
+详细说明请参考 `otel/README.md`。
+
+## 配置说明
+
+### 模型路径
+
+- 模型文件: `./models/`
+- Tokenizer: `./models/Qwen3-0.6B/`
+- ONNX 输出: `./models_onnx/`
+
+### 导出配置
+
+在 `Export_Fun_ASR_Nano.py` 中：
+- `OPSET = 13` - ONNX opset 版本（已修复兼容性问题）
+
+## 故障排除
+
+### OpenTelemetry 连接错误
+
+如果看到 `ConnectionRefusedError`，可以：
+1. 启动 OpenTelemetry 服务（见上方）
+2. 或在脚本中禁用 OpenTelemetry（已在 `Inference_Fun_ASR_Nano_ONNX.py` 中配置）
+
+### 依赖安装问题
+
+如果 `uv sync` 失败，使用系统 Python 环境或 Python 3.9。
+
+## 许可证
+
+请参考项目根目录的许可证文件。
